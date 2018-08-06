@@ -9,7 +9,7 @@ using namespace Windows.Graphics.Imaging
    Runs Windows 10 OCR against the image.
    Returns an [OcrResult], hopefully with a .Text property containing the text
 .EXAMPLE
-   $result = Get-TextFromImage -Path 'c:\test.bmp'
+   $result = .\Get-Win10OcrTextFromImage.ps1 -Path 'c:\test.bmp'
    $result.Text
 #>
 [CmdletBinding()]
