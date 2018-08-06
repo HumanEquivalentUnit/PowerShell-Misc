@@ -70,6 +70,9 @@ Process
         #
         # https://docs.microsoft.com/en-us/windows/uwp/audio-video-camera/imaging#save-a-softwarebitmap-to-a-file-with-bitmapencoder
 
+        # .Net method needs a full path, or at least might not have the same relative path root as PowerShell
+        $p = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($p)
+        
         $params = @{ 
             AsyncTask  = [StorageFile]::GetFileFromPathAsync($p)
             ResultType = [StorageFile]
