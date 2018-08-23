@@ -38,7 +38,7 @@ if ($EncryptByPassphraseVersion -eq 1)
 {
     $hashAlgo      = [System.Security.Cryptography.SHA1]::Create()
     $cryptoAlgo    = [System.Security.Cryptography.TripleDES]::Create()
-    $cryptoAlgo.IV = $CipherTextBytes[4..7]
+    $cryptoAlgo.IV = $CipherTextBytes[4..11]
     $encrypted     = $CipherTextBytes[12..($CipherTextBytes.Length-1)]
     $keySize       = 16
 }
