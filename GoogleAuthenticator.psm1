@@ -16,11 +16,11 @@ $Script:Base32Charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
   The QR code can be used with the Google Authenticator app
 
 .Example
-  PS C:\> New-GoogleAuthenticatorSecret
+  PS C:\> New-GoogleAuthenticatorSecret | Format-List
 
-  Secret           QrCodeUri                                                                                          
-  ------           ---------                                                                                          
-  5WYYADYB5DK2BIOV http://chart.apis.google[..]
+  Secret    : 7WAABUUI5VXM7I55
+  KeyUri    : otpauth://totp/Example%20Websi[..]
+  QrCodeUri : https://chart.apis.google.com/chart[..]
 
 .Example
   PS C:\>New-GoogleAuthenticatorSecret -Online
@@ -33,7 +33,7 @@ function New-GoogleAuthenticatorSecret
     Param(
         # Secret length in bytes, must be a multiple of 5 bits for neat BASE32 encoding
         [int]
-        [ValidateScript({($_ % 5 -eq 0) -and ($_ % 10 -eq 0)})]
+        [ValidateScript({($_ * 8) % 5 -eq 0})]
         $SecretLength = 10,
 
 
@@ -55,7 +55,7 @@ function New-GoogleAuthenticatorSecret
     # Generate random bytes for the secret
     $byteArrayForSecret = [byte[]]::new($SecretLength)
     [Security.Cryptography.RNGCryptoServiceProvider]::new().GetBytes($byteArrayForSecret, 0, $SecretLength)
-    
+
 
     # BASE32 encode the bytes
     # 5 bits per character doesn't align with 8-bits per byte input,
@@ -75,7 +75,7 @@ function New-GoogleAuthenticatorSecret
         param($Match)
         $Script:Base32Charset[[Convert]::ToInt32($Match.Value, 2)]
     })
-    
+
 
     # Generate the URI which needs to go to the Google Authenticator App.
     # URI escape each component so the name and issuer can have punctiation characters.
@@ -94,6 +94,7 @@ function New-GoogleAuthenticatorSecret
     # Tidy output, with a link to Google Chart API to make a QR code
     $keyDetails = [PSCustomObject]@{
         Secret = $Base32Secret
+        KeyUri = $otpUri
         QrCodeUri = "https://chart.apis.google.com/chart?cht=qr&chs=200x200&chl=${encodedUri}"
     }
 
@@ -142,7 +143,7 @@ function Get-GoogleAuthenticatorPin
     }
 
     [byte[]]$secretAsBytes = $bigInteger.ToByteArray()
-    
+
 
     # BigInteger sometimes adds a 0 byte to the end,
     # if the positive number could be mistaken as a two's complement negative number.
@@ -155,12 +156,13 @@ function Get-GoogleAuthenticatorPin
     # BigInteger stores bytes in Little-Endian order, 
     # but we need them in Big-Endian order.
     [array]::Reverse($secretAsBytes)
-    
+
 
     # Unix epoch time in UTC and divide by the window time,
     # so the PIN won't change for that many seconds
     $epochTime = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    
+
+
     # Convert the time to a big-endian byte array
     $timeBytes = [BitConverter]::GetBytes([int64][math]::Floor($epochTime / $TimeWindow))
     if ([BitConverter]::IsLittleEndian) { 
@@ -177,7 +179,7 @@ function Get-GoogleAuthenticatorPin
     # the TOTP protocol has a calculation to do that
     #
     # Google Authenticator app may support other PIN lengths, this code doesn't
-    
+
     # take half the last byte
     $offset = $hash[$hash.Length-1] -band 0xF
 
@@ -190,7 +192,7 @@ function Get-GoogleAuthenticatorPin
 
     # Remove the most significant bit
     $num = [BitConverter]::ToInt32($fourBytes, 0) -band 0x7FFFFFFF
-    
+
     # remainder of dividing by 1M
     # pad to 6 digits with leading zero(s)
     # and put a space for nice readability
