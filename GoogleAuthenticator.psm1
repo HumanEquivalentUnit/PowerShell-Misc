@@ -2,13 +2,6 @@ using namespace System
 
 $Script:Base32Charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
-# A module which exports two functions for Google Authenticator compatible
-# One Time Password codes
-
-# New-GoogleAuthenticatorSecret  which makes codes you can use
-# Get-GoogleAuthenticatorPin     which takes existing codes, and generates the current PIN
-
-
 <#
 .Synopsis
   Generate an 80-bit key, BASE32 encoded, secret
@@ -16,15 +9,28 @@ $Script:Base32Charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
   The QR code can be used with the Google Authenticator app
 
 .Example
-  PS C:\> New-GoogleAuthenticatorSecret | Format-List
+  PS C:\> New-GoogleAuthenticatorSecret
 
-  Secret    : 7WAABUUI5VXM7I55
-  KeyUri    : otpauth://totp/Example%20Websi[..]
-  QrCodeUri : https://chart.apis.google.com/chart[..]
+  Secret           QrCodeUri                                                                                          
+  ------           ---------                                                                                          
+  5WYYADYB5DK2BIOV http://chart.apis.google[..]
 
 .Example
-  PS C:\>New-GoogleAuthenticatorSecret -Online
+  PS C:\> New-GoogleAuthenticatorSecret -Online
   # *web browser opens*
+
+.Example
+  # Take a secret code from a real website,
+  # but put your own text around it to show in the app
+
+  PS C:\> New-GoogleAuthenticatorSecret -UseThisSecretCode HP44SIFI2GFDZHT6 -Name "me@example.com" -Issuer "My bank 💎" -Online | fl *
+
+
+  Secret    : HP44SIFI2GFDZHT6
+  KeyUri    : otpauth://totp/me%40example.com?secret=HP44SIFI2GFDZHT6&issuer=My%20bank%20%F0%9F%92%8E
+  QrCodeUri : https://chart.apis.google.com/chart?cht=qr&chs=200x200&chl=otpauth%3A%2F%2Ftotp%2Fme%25[..]
+
+  # web browser opens, and you can scan your bank code into the app, with new text around it.
 
 #>
 function New-GoogleAuthenticatorSecret
@@ -36,7 +42,10 @@ function New-GoogleAuthenticatorSecret
         [ValidateScript({($_ * 8) % 5 -eq 0})]
         $SecretLength = 10,
 
-
+        # Use an existing secret code, don't generate one, just wrap it with new text
+        [string]
+        $UseThisSecretCode = '',
+        
         # Launches a web browser to show a QR Code
         [switch]
         $Online = $false,
@@ -52,30 +61,37 @@ function New-GoogleAuthenticatorSecret
     )
 
 
-    # Generate random bytes for the secret
-    $byteArrayForSecret = [byte[]]::new($SecretLength)
-    [Security.Cryptography.RNGCryptoServiceProvider]::new().GetBytes($byteArrayForSecret, 0, $SecretLength)
+    # if there's a secret provided then use it, otherwise we need to generate one
+    if ($PSBoundParameters.ContainsKey('UseThisSecretCode')) {
+    
+        $Base32Secret = $UseThisSecretCode
+    
+    } else {
+
+        # Generate random bytes for the secret
+        $byteArrayForSecret = [byte[]]::new($SecretLength)
+        [Security.Cryptography.RNGCryptoServiceProvider]::new().GetBytes($byteArrayForSecret, 0, $SecretLength)
+    
+
+        # BASE32 encode the bytes
+        # 5 bits per character doesn't align with 8-bits per byte input,
+        # and needs careful code to take some bits from separate bytes.
+        # Because we're in a scripting language let's dodge that work.
+        # Instead, convert the bytes to a 10100011 style string:
+        $byteArrayAsBinaryString = -join $byteArrayForSecret.ForEach{
+            [Convert]::ToString($_, 2).PadLeft(8, '0')
+        }
 
 
-    # BASE32 encode the bytes
-    # 5 bits per character doesn't align with 8-bits per byte input,
-    # and needs careful code to take some bits from separate bytes.
-    # Because we're in a scripting language let's dodge that work.
-    # Instead, convert the bytes to a 10100011 style string:
-    $byteArrayAsBinaryString = -join $byteArrayForSecret.ForEach{
-        [Convert]::ToString($_, 2).PadLeft(8, '0')
+        # then use regex to get groups of 5 bits 
+        # -> conver those to integer 
+        # -> lookup that as an index into the BASE32 character set 
+        # -> result string
+        $Base32Secret = [regex]::Replace($byteArrayAsBinaryString, '.{5}', {
+            param($Match)
+            $Script:Base32Charset[[Convert]::ToInt32($Match.Value, 2)]
+        })
     }
-
-
-    # then use regex to get groups of 5 bits 
-    # -> conver those to integer 
-    # -> lookup that as an index into the BASE32 character set 
-    # -> result string
-    $Base32Secret = [regex]::Replace($byteArrayAsBinaryString, '.{5}', {
-        param($Match)
-        $Script:Base32Charset[[Convert]::ToInt32($Match.Value, 2)]
-    })
-
 
     # Generate the URI which needs to go to the Google Authenticator App.
     # URI escape each component so the name and issuer can have punctiation characters.
@@ -143,7 +159,7 @@ function Get-GoogleAuthenticatorPin
     }
 
     [byte[]]$secretAsBytes = $bigInteger.ToByteArray()
-
+    
 
     # BigInteger sometimes adds a 0 byte to the end,
     # if the positive number could be mistaken as a two's complement negative number.
@@ -156,13 +172,12 @@ function Get-GoogleAuthenticatorPin
     # BigInteger stores bytes in Little-Endian order, 
     # but we need them in Big-Endian order.
     [array]::Reverse($secretAsBytes)
-
+    
 
     # Unix epoch time in UTC and divide by the window time,
     # so the PIN won't change for that many seconds
     $epochTime = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-
-
+    
     # Convert the time to a big-endian byte array
     $timeBytes = [BitConverter]::GetBytes([int64][math]::Floor($epochTime / $TimeWindow))
     if ([BitConverter]::IsLittleEndian) { 
@@ -179,7 +194,7 @@ function Get-GoogleAuthenticatorPin
     # the TOTP protocol has a calculation to do that
     #
     # Google Authenticator app may support other PIN lengths, this code doesn't
-
+    
     # take half the last byte
     $offset = $hash[$hash.Length-1] -band 0xF
 
@@ -192,7 +207,7 @@ function Get-GoogleAuthenticatorPin
 
     # Remove the most significant bit
     $num = [BitConverter]::ToInt32($fourBytes, 0) -band 0x7FFFFFFF
-
+    
     # remainder of dividing by 1M
     # pad to 6 digits with leading zero(s)
     # and put a space for nice readability
