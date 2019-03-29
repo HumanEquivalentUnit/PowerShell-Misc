@@ -31,6 +31,7 @@ class TrieNode
    }
 }
 
+
 # Trie main class implements adding and finding strings
 class Trie
 {
@@ -94,7 +95,28 @@ class Trie
         }
     }
 
+    [string[]] GetNamesStartingWith ( [string] $text )
+    {
+        $result = [System.Collections.Generic.List[string]]::new()
+        
+        $currentText = $text
+        $node = $this.Prefix($text)
+        
+        # no names found starting with this text
+        if ($node.depth -lt $text.Length) {
+            return $result
+        }
 
+        # we're somewhere in the tree, 
+        # dive down to the names after here
+        foreach ($n in $node.childNodes.Values) {
+            if ($n.nameDetails) {
+                $result.Add("{0}{1}{2}({3})" -f ($currentText, $n.Char, (' '*[math]::Max(1, (20-$currentText.Length))), ([string]::Join(', ', $n.nameDetails.GetEnumerator().foreach{"{0}:{1}" -f $_.Name, $_.Value}))))
+            }
+            $result.AddRange($this.GetNamesStartingWith("$currentText$($n.Char)"))
+        }
+        return $result
+    }
 
     # Constructor, with placeholder root node
     Trie ()
@@ -103,18 +125,13 @@ class Trie
     }
 }
 
+
 $nameTrie = [Trie]::new()
 
+$data = Import-Csv -Path .\names.csv
 
-$boysTotalCount = 6719367
-$girlsTotalCount = 6549591
-
-$total = $boysTotalCount + $girlsTotalCount
-
-foreach ($row in Import-Csv .\namesb.txt) {
-    $nameTrie.Insert($row.Name, 'm', ($row.count/$total))
+foreach ($row in $data) {
+    $nameTrie.Insert($row.Name, $row.gender, ($row.count/$data.count))
 }
 
-foreach ($row in Import-Csv .\namesf.txt) {
-    $nameTrie.Insert($row.Name, 'f', ($row.count/$total))    
-}
+$nameTrie
