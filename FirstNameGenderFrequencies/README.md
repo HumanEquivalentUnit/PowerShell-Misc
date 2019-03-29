@@ -1,4 +1,4 @@
-Code to find how commonly a name is used for different genders.
+Code to find how commonly a name is used for different genders[1].
 
 ## Usage
 
@@ -87,4 +87,5 @@ A->A->R
 It is an implementation of a Trie ported [from this code](https://visualstudiomagazine.com/articles/2015/10/20/text-pattern-search-trie-class-net.aspx), with some changes and some removals.
 
 
-
+[1] it's descriptive of records in a dataset, not prescriptive of gender on humans.
+If you use this to describe Alice and Alice objects, on your head be it.
