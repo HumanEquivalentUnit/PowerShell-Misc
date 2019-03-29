@@ -4,7 +4,7 @@ Code to find how commonly a name is used for different genders.
 
 - Download the CSV and PS1 files
 
-Then use it to load the names into a lookup tree:
+Then use it to load the names into a lookup tree (you might have to edit the .ps1, scroll to the bottom, point it to the right CSV path):
 
 ```
 # load the data
