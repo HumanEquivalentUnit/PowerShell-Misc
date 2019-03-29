@@ -30,8 +30,6 @@ PS C:\> $namesTrie.Search('sam')
 
 Name                           Value
 ----                           -----
-Name                           Value
-----                           -----
 f                              0.00275544697895066
 m                              0.000511320057949607
 
